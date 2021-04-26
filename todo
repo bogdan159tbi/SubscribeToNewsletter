@@ -1,0 +1,10 @@
+TODO: server accepta conexiuni udp si tcp si sunt afisate mesajele conform cerintei ,in clientii abonati la respectivele newslettere
+
+server:
+	send_if_subscribed()
+	store_if_disconected()
+	
+client: 
+	subscribe()
+	unscubscribe()
+	
