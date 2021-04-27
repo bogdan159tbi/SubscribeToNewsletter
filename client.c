@@ -15,6 +15,11 @@ void usage(char *file)
 	exit(0);
 }
 
+void send_id_to_server(char *id, int sockfd){
+
+	int ret = send(sockfd, id, strlen(id) + 1 , 0);
+	DIE(ret < 0,"sending id failed");
+}
 int main(int argc, char *argv[])
 {
 	int sockfd, n, ret;
@@ -35,6 +40,9 @@ int main(int argc, char *argv[])
 
 	ret = connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
 	DIE(ret < 0, "connect");
+	//dupa ce s a conectat trebuie sa anuntam server ul ce id are clientul
+	send_id_to_server(argv[1], sockfd);
+	
 	fd_set read_set;
 	FD_ZERO(&read_set);
 	FD_SET(STDIN_FILENO, &read_set);
