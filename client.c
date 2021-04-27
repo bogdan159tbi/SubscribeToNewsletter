@@ -20,6 +20,25 @@ void send_id_to_server(char *id, int sockfd){
 	int ret = send(sockfd, id, strlen(id) + 1 , 0);
 	DIE(ret < 0,"sending id failed");
 }
+
+int parse_msg(struct client_tcp *msg, char *buf){
+	//buf este de forma subscribe topic sf
+	char *tok;
+	tok = strtok(buf, " ");
+	if (!strcmp("subscribe", tok))
+		msg->action = 1;
+	else if(!strcmp("unsubscribe", tok))
+		msg->action = 0;
+	else
+		return 0;
+	tok = strtok(NULL, " ");
+	strcpy(msg->topic, tok);
+
+	tok = strtok(NULL, " ");
+	msg->store = atoi(tok);
+	return 1;
+	
+}
 int main(int argc, char *argv[])
 {
 	int sockfd, n, ret;
@@ -49,6 +68,8 @@ int main(int argc, char *argv[])
 	FD_SET(sockfd, &read_set);
 	int fd_max = STDIN_FILENO > sockfd ? STDIN_FILENO : sockfd;
 
+	struct client_tcp msg;
+	struct server_tcp msg_from_server;
 	while (1) {
 		fd_set tmp_set = read_set;
 		select(fd_max + 1, &tmp_set, NULL, NULL, NULL);
@@ -56,25 +77,42 @@ int main(int argc, char *argv[])
 			// se citeste de la tastatura
 			memset(buffer, 0, BUFLEN);
 			fgets(buffer, BUFLEN - 1, stdin);
-
-			if (strncmp(buffer, "exit", 4) == 0) {
+			if (!strcmp(buffer, "exit")){
+				close(sockfd);
+				printf("leaving...\n");//nu e necesar
+				return 0;
+			}
+			else if (strncmp(buffer, "exit", 4) == 0) {
 				break;
 			}
-
-			// se trimite mesaj la server
-			n = send(sockfd, buffer, strlen(buffer), 0);
-			DIE(n < 0, "send");
+			//se verifica corectitudinea mesajului la client
+			//nu mai e nevoie la server 
+			// se trimite mesaj de tip tcp_client la server
+			n = parse_msg(&msg, buffer);//sper ca am parsat bine 
+			if (n == 0){
+				printf("message ignored.format incorect\n");
+			}else {
+				n = send(sockfd, &msg, sizeof(struct client_tcp), 0);
+				DIE(n < 0, "send");
+				if (msg.action == 1)
+					printf("Client subscribed to topic\n");
+				else
+					printf("Client unsubscribed to topic\n");
+			}
 		} else if(FD_ISSET(sockfd, &tmp_set)){
 			//primim de pe sockfd
 			//memset(buffer, 0, BUFLEN);
-			n = recv(sockfd, buffer, sizeof(buffer) - 1, 0);
-			buffer[n] = '\0';// in loc de memset 
+			n = recv(sockfd, &msg_from_server, sizeof(struct server_tcp), 0);
 			DIE(n < 0, "recv failed");
+			
 			if (n == 0){
 				fprintf(stdout,"server closed\n");
 				break;
-			} else
-				fprintf(stdout, "%s\n",buffer);
+			} else{//trebuie tratat in functie de type
+				fprintf(stdout, "%s:%d %s %s\n",
+						msg_from_server.ip, msg_from_server.port,
+						msg_from_server.topic, msg_from_server.payload);
+			}
 		}
 	}
 
