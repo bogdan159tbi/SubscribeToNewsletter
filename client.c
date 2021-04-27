@@ -11,13 +11,13 @@
 
 void usage(char *file)
 {
-	fprintf(stderr, "Usage: %s id_client server_address server_port\n", file);
+	fprintf(stderr, "Usage: %s id_client server_address server_port\n", file); // asta e pt udp sau si pt tcp?
 	exit(0);
 }
 
 int main(int argc, char *argv[])
 {
-	int sockfd_tcp, sockfd_udp, n, ret;
+	int sockfd, n, ret;
 	struct sockaddr_in serv_addr;
 	char buffer[BUFLEN];
 
@@ -25,21 +25,21 @@ int main(int argc, char *argv[])
 		usage(argv[0]);
 	}
 
-	sockfd_tcp = socket(AF_INET, SOCK_STREAM, 0);
-	DIE(sockfd_tcp < 0, "socket");
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	DIE(sockfd < 0, "socket");
 
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(atoi(argv[3]));
 	ret = inet_aton(argv[2], &serv_addr.sin_addr);
 	DIE(ret == 0, "inet_aton");
 
-	ret = connect(sockfd_tcp, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
+	ret = connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
 	DIE(ret < 0, "connect");
 	fd_set read_set;
 	FD_ZERO(&read_set);
 	FD_SET(STDIN_FILENO, &read_set);
-	FD_SET(sockfd_tcp, &read_set);
-	int fd_max = STDIN_FILENO > sockfd_tcp ? STDIN_FILENO : sockfd_tcp;
+	FD_SET(sockfd, &read_set);
+	int fd_max = STDIN_FILENO > sockfd ? STDIN_FILENO : sockfd;
 
 	while (1) {
 		fd_set tmp_set = read_set;
@@ -54,24 +54,23 @@ int main(int argc, char *argv[])
 			}
 
 			// se trimite mesaj la server
-			n = send(sockfd_tcp, buffer, strlen(buffer), 0);
+			n = send(sockfd, buffer, strlen(buffer), 0);
 			DIE(n < 0, "send");
-		} else if(FD_ISSET(sockfd_tcp, &tmp_set)){
+		} else if(FD_ISSET(sockfd, &tmp_set)){
 			//primim de pe sockfd
 			//memset(buffer, 0, BUFLEN);
-			n = recv(sockfd_tcp, buffer, sizeof(buffer) - 1, 0);
+			n = recv(sockfd, buffer, sizeof(buffer) - 1, 0);
 			buffer[n] = '\0';// in loc de memset 
 			DIE(n < 0, "recv failed");
 			if (n == 0){
 				fprintf(stdout,"server closed\n");
 				break;
 			} else
-				fprintf(stdout, "received %s\n",buffer);
+				fprintf(stdout, "%s\n",buffer);
 		}
 	}
 
-	close(sockfd_tcp);
-    //close(sockfd_udp);
+	close(sockfd);
 
 	return 0;
 }

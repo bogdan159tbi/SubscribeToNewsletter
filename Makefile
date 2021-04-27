@@ -10,7 +10,7 @@ PORT =
 # Adresa IP a serverului (de completat)
 IP_SERVER = 
 
-all: server client
+all: server client client_udp
 
 # Compileaza server.c
 server: server.c
@@ -18,6 +18,7 @@ server: server.c
 # Compileaza client.c
 client: client.c
 
+client_udp: client_udp.c
 .PHONY: clean run_server run_client
 
 # Ruleaza serverul
