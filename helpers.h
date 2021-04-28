@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 /*
  * Macro de verificare a erorilor
@@ -21,18 +22,19 @@
 		}									\
 	} while(0)
 
-#define BUFLEN		256	// dimensiunea maxima a calupului de date
+#define BUFLEN	256	// dimensiunea maxima a calupului de date
 #define MAX_CLIENTS	5	// numarul maxim de clienti in asteptare
 #define TOPIC_LEN 51
-#define  CONTENT 1501
+#define CONTENT 1501
 #define ID_LEN 11 //10 + '\0;
+#define MAX_TOPICS 50
 #endif
 
 //udp msg to server
 struct datagram {
-	char topic[TOPIC_LEN];
+	char topic[50];
 	uint8_t type;
-	char payload[CONTENT]; // s ar putea sa fie 1501
+	char payload[CONTENT]; // s ar putea sa fie 1501 sau 1552??
 
 };
 
@@ -57,6 +59,7 @@ struct client {
 	int sockfd; //as putea crea un map<sockfd, client>
 	int sf_active; //0 = nu primeste nimic la reconectare ,1 altfel
 	struct datagram *messages_offline;//retine mesajele pentru id-ul clientului deconectat si le trimite  daca sf _active = 1 
-	char *topics; //server retine topicurile la care este abonat clientul cu id-ul respectiv
+	char **topics; //server retine topicurile la care este abonat clientul cu id-ul respectiv
+	int nr_topics;
 };
 

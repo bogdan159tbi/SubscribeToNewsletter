@@ -10,13 +10,13 @@ PORT =
 # Adresa IP a serverului (de completat)
 IP_SERVER = 
 
-all: server client client_udp
+all: server subscriber client_udp
 
 # Compileaza server.c
 server: server.c
 
 # Compileaza client.c
-client: client.c
+subcriber: subscriber.c
 
 client_udp: client_udp.c
 .PHONY: clean run_server run_client
@@ -27,7 +27,7 @@ run_server:
 
 # Ruleaza clientul
 run_client:
-	./client ${IP_SERVER} ${PORT}
+	./subscriber ${IP_SERVER} ${PORT}
 
 clean:
-	rm -f server client
+	rm -f server subscriber

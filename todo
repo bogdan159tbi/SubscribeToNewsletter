@@ -7,4 +7,11 @@ server:
 client: 
 	subscribe()
 	unscubscribe()
-	
+
+pana acum merge sa trimit la cei care au dat subscribe dar nu ia continutul mesajului
+adica nu tratez cazurile pentru type de la payload
+doar caut dupa char *topic
+
+mai am de facut la unsubscribe ,cand scad si nr de topicuri de la fiecare client
+TODO: PARSAREA mesajului de la udp in functie de tip
+      
