@@ -61,5 +61,6 @@ struct client {
 	struct datagram *messages_offline;//retine mesajele pentru id-ul clientului deconectat si le trimite  daca sf _active = 1 
 	char **topics; //server retine topicurile la care este abonat clientul cu id-ul respectiv
 	int nr_topics;
+	int online; // 1 daca e conectat sau 0 daca a fost online si s a deconectat
 };
 

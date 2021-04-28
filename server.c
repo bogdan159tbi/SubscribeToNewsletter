@@ -15,22 +15,25 @@ void usage(char *file)
 }
 //verifica daca clientul cu id-ul = id2 
 //este deja conectat
-int id_exists(char id2[10],struct client **clients, int nr){
+struct client * id_exists(char id2[10],struct client **clients, int nr){
 	for(int i = 0; i < nr; i++){
 		if(strcmp(clients[i]->id,id2) == 0){
-			return 1;
+			return clients[i];
 		}
 	}
-	return 0;
+	return NULL;
 }
 
 struct client * create_new_client(struct client **cl, int nr, int sockfd, struct sockaddr_in cli_addr){
 	char id[11];
 	int ret  = recv(sockfd, id, ID_LEN, 0);
 	DIE(ret < 0,"recv id failed");
-	if (id_exists(id, cl, nr)) {
-		printf("Client %s already connected.\n",id);
-		return NULL;
+	struct client *check_online = id_exists(id, cl, nr);
+	if (check_online ) {
+		if(check_online->online == 1){
+			printf("Client %s already connected.\n",id);
+			return NULL;
+		}
 	}
 	struct client *clnt = calloc(sizeof(struct client), 1);
 	DIE(clnt== NULL, "client fialed to create");
@@ -52,15 +55,15 @@ void close_sockets(int sockfd_tcp, int sockfd_udp, fd_set *read_fds, int fdmax) 
 	close(sockfd_udp);
 }
 //cauta clientul in lista dupa sockfd si afiseaza
-void client_left(int sockfd, struct client **cls, int nr){
+void client_left(int sockfd, struct client ***cls, int nr){
 	// conexiunea s-a inchis
 	for(int i = 0 ;i < nr; i++){
-		if (cls[i]->sockfd == sockfd){
-			printf("Client %s disconnected.\n",cls[i]->id);
+		if ((*cls)[i]->sockfd == sockfd){
+			printf("Client %s disconnected.\n",(*cls)[i]->id);
+			(*cls)[i]->online = 0;
 			break;
 		}
 	}
-	close(sockfd);
 	// se scoate din multimea de citire socketul inchis 
 }
 
@@ -84,14 +87,25 @@ struct client * map_client_sockfd(int sockfd, struct client **cls ,int nr){
 	}
 	return NULL;
 }
-void subscribe(struct client **clients, int nr_clients, struct client_tcp msg_from_tcp, int sockfd){
-	struct client *c = map_client_sockfd(sockfd, clients, nr_clients);
+//daca nu merge asa
+//pot pune funct map_client direct in subscribe
+void subscribe(struct client ***clients, int nr_clients, struct client_tcp msg_from_tcp, int sockfd){
+	struct client *c = map_client_sockfd(sockfd, *clients, nr_clients);
 	c->topics[c->nr_topics] = calloc( TOPIC_LEN,sizeof(char));
 	strcpy(c->topics[c->nr_topics++], msg_from_tcp.topic);
 	c->sf_active = msg_from_tcp.store;
-	printf("client %s subscribed to %s %d\n", c->id,c->topics[c->nr_topics - 1], c->sf_active);
+	//printf("Client %s subscribed to %s %d\n", c->id,c->topics[c->nr_topics - 1], c->sf_active);
 }
+void unsubscribe(struct client ***clients, int nr_clients, struct client_tcp msg_from_tcp, int sockfd){
+	struct client *c;
+	for(int i = 0 ;i < nr_clients; i++){
+		if((*clients)[i]->sockfd == sockfd) {
+			c = (*clients)[i];
+		}
+	}
 
+	c->nr_topics--;
+}
 //return 1 daca clientul c e abonat la topicul dat
 int check_client_subscribed(char *topic , struct client *c){
 	for(int i = 0 ; i < c->nr_topics; i++){
@@ -162,9 +176,14 @@ int parse_udp_msg(struct datagram m, struct server_tcp *msg_from_server, struct 
 	strcpy(msg_from_server->topic, m.topic);
 	return 0;
 }
+void show_server_to_tcp(struct server_tcp msg_from_server){
+	printf("%s:%d topic= %s type= %s value= %s\n",
+		   msg_from_server.ip, msg_from_server.port, msg_from_server.topic, msg_from_server.type, msg_from_server.payload);
+}
 
 int main(int argc, char *argv[])
 {
+	setvbuf(stdout, NULL, _IONBF, BUFSIZ);
 	int sockfd_tcp, newsockfd_tcp, portno;
     int sockfd_udp;
 	char buffer[BUFLEN];
@@ -244,6 +263,7 @@ int main(int argc, char *argv[])
 						close(newsockfd_tcp);
 						break;
 					}
+					clients[nr_clients]->online = 1;
 					nr_clients++;
 					// se adauga noul socket intors de accept() la multimea descriptorilor de citire
 					FD_SET(newsockfd_tcp, &read_fds);
@@ -269,22 +289,23 @@ int main(int argc, char *argv[])
 					if (ret == -1){
 						continue;
 					}
-					printf("%s:%d topic= %s type= %s value= %s\n",
-						  msg_from_server.ip, msg_from_server.port, msg_from_server.topic, msg_from_server.type, msg_from_server.payload);
-					
+
+					//verific daca pentru topicul primit exista subscriberi
+					//se poate ca un subscriber sa fie offline
 					for(int subscribed = 0 ; subscribed <= fdmax; subscribed++){
 						if (FD_ISSET(subscribed, &read_fds) && is_tcp_client(subscribed,sockfd_tcp, sockfd_udp) ){
 							struct client *c = map_client_sockfd(subscribed, clients, nr_clients);
-							if (check_client_subscribed(m.topic,c)){
+							if (check_client_subscribed(msg_from_server.topic, c)){
 								ret = send(subscribed, &msg_from_server, sizeof(struct server_tcp),0);
 								DIE(ret < 0 ,"sending to subscribers failed");
 							}
 						}
 					}
+
                 } else if (i == STDIN_FILENO){//cand primeste comanda exit de la tastatura
 					//close all sockets
 					close_sockets(sockfd_tcp, sockfd_udp, &read_fds, fdmax);
-					return 0;//tre sa dea return 0 sau mai face altceva dupa
+					return 0;//tre sa dea return 0 sau mai face altceva dupa ?? 2
 				}
                 else {
 					// s-au primit date pe unul din socketii de client,
@@ -293,15 +314,18 @@ int main(int argc, char *argv[])
 					DIE(n < 0, "recv");
 
 					if (n == 0) {
-						client_left(i, clients, nr_clients);
+						client_left(i, &clients, nr_clients);
+						close(i);
 						FD_CLR(i, &read_fds);
 					} else {
                         //verific daca mesajul e corect la client		
 						if (msg_from_tcp.action){//subscribe case
-							subscribe(clients, nr_clients, msg_from_tcp, i);
+							subscribe(&clients, nr_clients, msg_from_tcp, i);
+
 						} else {// verifica daca era subscribed inainte
-							printf("client unsubscribed to %s %d\n", msg_from_tcp.topic, msg_from_tcp.store);
-							//TODO : scade client->nr_topics la unsubscribe
+							//printf("client unsubscribed to %s %d\n", msg_from_tcp.topic, msg_from_tcp.store);
+							//TODO : scade client->nr_topics la unsubscribe si elimina topicul din topics
+							unsubscribe(&clients, nr_clients, msg_from_tcp, i);
 						}
 					}	
 				}
