@@ -141,9 +141,13 @@ int parse_udp_msg(struct datagram m, struct server_tcp *msg_from_server, struct 
 			printf("ignoring message.sign  incorrect from udp\n");
 			return -1;
 		}
-		uint32_t value = ntohs(*(uint32_t*)(m.payload + 1));
+		double value = ntohl(*(uint32_t*)(m.payload + 1));
 		uint8_t abs_pow = m.payload[5];
-		float val = value / my_pow(10, abs_pow); // nu stiu daca folosec bine my_pow
+		double val;
+		if(!abs_pow)
+			val = value ; // my_pow(10, abs_pow); // nu stiu daca folosec bine my_pow
+		else
+			val = value /  my_pow(10,abs_pow); 
 		if (sign == 1)
 			val *= (-1);
 		sprintf(msg_from_server->payload,"%f",val);
