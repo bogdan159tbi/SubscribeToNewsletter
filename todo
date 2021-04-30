@@ -14,4 +14,14 @@ doar caut dupa char *topic
 
 mai am de facut la unsubscribe ,cand scad si nr de topicuri de la fiecare client
 TODO: PARSAREA mesajului de la udp in functie de tip
-      
+    
+
+last_todo:
+	nu mi merge checker-ul. da timeout cand vrea sa afiseze continutul pentru topicurile la care e abonat un client
+
+taskuri_todo: sa retin un buffer in server pentru topicurile unde clientul are sf_active = 1
+	     daca se deconecteaza,pot sterge topicurile unde are sf_active = 0 ? sau sa las asa
+	     si cand adaug in buffer verific daca sf_active = 1
+structura buffer -> client_id(verific daca e abonat la topicul x si sf_active = 1) 
+		 -> mesaj_udp
+-> se trimite dupa ce se conecteaza client_id. adica de fiecare data cand se conecteaza ,verific daca a ma mai fost conectat inainte si dupa caut in buffer.

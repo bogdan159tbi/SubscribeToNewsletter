@@ -12,7 +12,7 @@ from os import path
 from time import sleep
 
 # default port for the  server
-port = "12345"
+port = "1234"
 
 # default IP for the server
 ip = "127.0.0.1"
@@ -290,6 +290,7 @@ def check_subscriber_output(c, client_id, target):
   """Compares the output of a TCP client with an expected string."""
   outc = c.get_output_timeout(1)
   if target not in outc:
+    
     print("Error: C" + client_id + " output should contain [" + target + "], is actually [" + outc.rstrip() + "]")
     return False
 

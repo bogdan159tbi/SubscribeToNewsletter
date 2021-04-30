@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <netinet/tcp.h>
 
 /*
  * Macro de verificare a erorilor
@@ -28,6 +29,7 @@
 #define CONTENT 1501
 #define ID_LEN 11 //10 + '\0;
 #define MAX_TOPICS 50
+#define MAX_BUFFER_TCP 100//nr de mesaje tinute in buffer
 #endif
 
 //udp msg to server
@@ -54,13 +56,20 @@ struct client_tcp {
 	int action; // 1 = subscribe 0 = unsubscribe
 	char topic[TOPIC_LEN];
 };
+struct newsletter {
+	char *topic;
+	int sf_active; //0 = nu primeste nimic la reconectare ,1 altfel
+};
 struct client {
 	char id[ID_LEN];
 	int sockfd; //as putea crea un map<sockfd, client>
-	int sf_active; //0 = nu primeste nimic la reconectare ,1 altfel
 	struct datagram *messages_offline;//retine mesajele pentru id-ul clientului deconectat si le trimite  daca sf _active = 1 
-	char **topics; //server retine topicurile la care este abonat clientul cu id-ul respectiv
+	struct newsletter *topics; //server retine topicurile la care este abonat clientul cu id-ul respectiv
 	int nr_topics;
 	int online; // 1 daca e conectat sau 0 daca a fost online si s a deconectat
 };
 
+struct buffer_tcp {
+	char id[ID_LEN];
+	struct datagram message;
+};
