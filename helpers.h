@@ -16,7 +16,7 @@
 #define DIE(assertion, call_description)	\
 	do {									\
 		if (assertion) {					\
-			fprintf(stderr, "(%s, %d): ",	\
+			fprintf(stdout, "(%s, %d): ",	\
 					__FILE__, __LINE__);	\
 			perror(call_description);		\
 			exit(EXIT_FAILURE);				\
@@ -36,13 +36,13 @@
 struct datagram {
 	char topic[50];
 	uint8_t type;
-	char payload[CONTENT]; // s ar putea sa fie 1501 sau 1552??
+	char payload[CONTENT]; //  1501 sau 1552??
 
 };
 
-//mesajele primite de clientul tcp de la server
+//mesaj de la server la client tcp
 //reprezentant continutul pentru topicul la care este abonat
-struct server_tcp {
+struct  server_tcp {
 	char ip[50];
 	int port;
 	char topic[TOPIC_LEN];
@@ -51,16 +51,16 @@ struct server_tcp {
 };
 
 //tcp client trimite la server
-struct client_tcp {
+struct  client_tcp {
 	int store; //1 => store , 0 => no store
 	int action; // 1 = subscribe 0 = unsubscribe
 	char topic[TOPIC_LEN];
 };
-struct newsletter {
+struct  newsletter {
 	char *topic;
 	int sf_active; //0 = nu primeste nimic la reconectare ,1 altfel
 };
-struct client {
+struct  client {
 	char id[ID_LEN];
 	int sockfd; //as putea crea un map<sockfd, client>
 	struct datagram *messages_offline;//retine mesajele pentru id-ul clientului deconectat si le trimite  daca sf _active = 1 
@@ -69,7 +69,17 @@ struct client {
 	int online; // 1 daca e conectat sau 0 daca a fost online si s a deconectat
 };
 
-struct buffer_tcp {
+//buffer local cand e deconectat
+struct  buffer_tcp {
 	char id[ID_LEN];
-	struct datagram message;
+	int sockfd;
+	struct server_tcp **messages;//mesaje care tre trimise de la server la clientul id tcp
+	int nr_msg_from_server;
 };
+
+struct topic_buffer {
+	char topic_name[TOPIC_LEN];
+	struct server_tcp subscribers[MAX_CLIENTS];
+};
+
+

@@ -2,7 +2,7 @@
 # Laborator 8: Multiplexare
 # Makefile
 
-CFLAGS = -Wall -g
+CFLAGS = -Wall -g -O2
 
 # Portul pe care asculta serverul (de completat)
 PORT = 
