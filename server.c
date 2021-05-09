@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "helpers.h"
+#include <math.h>
 
 void usage(char *file)
 {
@@ -30,7 +31,7 @@ struct client * id_exists(char id2[10],struct client **clients, int nr){
 struct client * create_new_client( int sockfd, struct sockaddr_in cli_addr , char *id){
 
 	struct client *clnt = calloc(sizeof(struct client), 1);
-	DIE(clnt== NULL, "client fialed to create");
+	DIE(clnt== NULL, "client failed to create");
 	clnt->sockfd = sockfd;
 	clnt->topics = calloc(sizeof(struct newsletter),MAX_TOPICS);
 	DIE(clnt->topics == NULL, "clnt topics failed");
@@ -52,15 +53,29 @@ void close_sockets(int sockfd_tcp, int sockfd_udp, fd_set *read_fds, int fdmax) 
 //cauta clientul in lista dupa sockfd si afiseaza
 void client_left(int sockfd, struct client ***cls, int nr){
 	// conexiunea s-a inchis
+	
 	for(int i = 0 ;i < nr; i++){
 		if ((*cls)[i]->sockfd == sockfd){
 			printf("Client %s disconnected.\n",(*cls)[i]->id);
 			(*cls)[i]->online = 0;
+			
+			struct client *c = (*cls)[i];	
+			//daca da segfault e de la free d aici
+			if (c->nr_topics == 0){
+				//atunci nu mai am de ce sa retin clientul
+				free(c->topics);
+				free(c);
+				for(int j = i ; j < nr - 1;j++){
+					(*cls)[j] = (*cls)[j+1];
+				}
+			}		
 			break;
 		}
 	}
 }
 
+//pentru debug sau extinderea functionalitatii 
+//afisez clientii existenti ,precum in lab 8
 void show_clients(struct client *cls, int nr){
 	for(int i = 0 ; i < nr;i++){
 		printf("Client %s ", cls[i].id);
@@ -92,15 +107,15 @@ int check_client_subscribed(char *topic , struct client *c){
 	}
 	return 0;
 }
-//daca nu merge asa
-//pot pune funct map_client direct in subscribe
+
 void subscribe(struct client ***clients, int nr_clients, struct client_tcp msg_from_tcp, int sockfd){
 	struct client *c = map_client_sockfd(sockfd, *clients, nr_clients);
+
 	c->topics[c->nr_topics].topic = calloc( TOPIC_LEN,sizeof(char));
 	DIE(!c->topics[c->nr_topics].topic,"client subsc calloc");
+	
 	strcpy(c->topics[c->nr_topics].topic, msg_from_tcp.topic);
 	c->topics[c->nr_topics++].sf_active = msg_from_tcp.store;
-	//printf("Client %s subscribed to %s %d\n", c->id,c->topics[c->nr_topics - 1], c->sf_active);
 }
 int unsubscribe(struct client ***clients, int nr_clients, struct client_tcp msg_from_tcp, int sockfd,char *topic_name){
 	struct client *c;
@@ -123,20 +138,11 @@ int unsubscribe(struct client ***clients, int nr_clients, struct client_tcp msg_
 		strcpy(c->topics[i].topic, c->topics[i+1].topic);
 	}
 	//anulam ultimul element din lista de topicuri
-	//free(c->topics[c->nr_topics]);
 	c->nr_topics--;
 	return 0;
 }
 
-//stream reprezinta mesajul de la server la clientul tcp
-int my_pow(int base, int exp){
-	for(int i = 1; i < exp;i++){
-		base *= base;
-	}
-	return base;
-}
 int parse_udp_msg(struct datagram m, struct server_tcp *msg_from_server, struct sockaddr_in cli_addr_udp){
-	//sa fac vreo verificare?
 	if(m.type == 0){
 		//int
 		strcpy(msg_from_server->type, "INT");
@@ -156,10 +162,10 @@ int parse_udp_msg(struct datagram m, struct server_tcp *msg_from_server, struct 
 	} else if(m.type == 1){
 		//short real
 		strcpy(msg_from_server->type, "SHORT_REAL");
-		uint16_t value;//modulul nr * 100
+		double value;//modulul nr * 100
 		value = ntohs(*(uint16_t*)(m.payload));
-		double val = value / 100;
-		sprintf(msg_from_server->payload,"%.2f", val);
+		value = value / 100;
+		sprintf(msg_from_server->payload,"%.2f", value);
 
 	} else if(m.type == 2){
 		//float
@@ -173,12 +179,12 @@ int parse_udp_msg(struct datagram m, struct server_tcp *msg_from_server, struct 
 		uint8_t abs_pow = m.payload[5];
 		double val;
 		if(!abs_pow)
-			val = value ; // my_pow(10, abs_pow); // nu stiu daca folosec bine my_pow
+			val = value ; 
 		else
-			val = value /  my_pow(10,abs_pow); 
+			val = value /  pow(10,abs_pow); 
 		if (sign == 1)
 			val *= (-1);
-		sprintf(msg_from_server->payload,"%f",val);
+		sprintf(msg_from_server->payload,"%lf",val);
 
 	} else if(m.type == 3) {
 		//string
@@ -194,7 +200,7 @@ void show_server_to_tcp(struct server_tcp msg_from_server){
 	printf("%s:%d topic= %s type= %s value= %s\n",
 		   msg_from_server.ip, msg_from_server.port, msg_from_server.topic, msg_from_server.type, msg_from_server.payload);
 }
-int was_connected_before(struct client ***clients, int nr,char *id){
+int was_connected_before(struct client ***clients, int nr,char *id, struct sockaddr_in cli_addr){
 						
 	struct client *check_online = id_exists(id , *clients, nr);//+1 pt ca se trimite c1 iar id e 1 
 	if (check_online ) {
@@ -203,7 +209,8 @@ int was_connected_before(struct client ***clients, int nr,char *id){
 			return 0;
 		} else if(check_online->online == 0){
 			//a mai fost conectat inainte
-			//printf("welcome back %s\n", id);
+			printf("New client %s connected from %s:%d.\n",
+					check_online->id,inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
 			check_online->online = 1;
 			return 1;
 		}
@@ -252,16 +259,14 @@ struct buffer_tcp *store_msg_udp(struct buffer_tcp **buff, int buff_size, int so
 */
 int send_buffered_msg(char *id, struct buffer_tcp ***buffered,int *size_local, struct client **clients, int nr_clients) {
 	if ((*buffered)[0] == NULL){
-		//printf("nu exista mesaje in bufferul local\n");
+		//nu exista mesaje in bufferul local
 		return -1;
 	}
 	struct buffer_tcp *buffered_msg;
 	int ret;
 	int index = -1 ; //
-	printf("local size e %d\n", *size_local);
 	for(int i = 0 ;i < *size_local; i++){
 		buffered_msg = (*buffered)[i];
-		printf("dar trimit %d\n", buffered_msg->nr_msg_from_server);
 		if (!strcmp(id, buffered_msg->id)){
 			//send stored messages for client with id = id
 			index = i;
@@ -292,7 +297,6 @@ int send_buffered_msg(char *id, struct buffer_tcp ***buffered,int *size_local, s
 
 	return 0;
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -378,12 +382,11 @@ int main(int argc, char *argv[])
 					ret  = recv(newsockfd_tcp, id_client, ID_LEN, 0);
 					DIE(ret < 0,"recv id failed\n");
 					
-					ret = was_connected_before(&clients, nr_clients, id_client); 
+					ret = was_connected_before(&clients, nr_clients, id_client, cli_addr); 
 					if ( ret < 0){
 						clients[nr_clients] = create_new_client( newsockfd_tcp, cli_addr, id_client);//prea id si socketul corespunzator clientului
 						if (clients[nr_clients] == NULL){
 							close(newsockfd_tcp);
-							//printf("nu s a putut crea noul client\n");
 							break;
 						} else {
 							clients[nr_clients]->online = 1;
@@ -394,6 +397,7 @@ int main(int argc, char *argv[])
 						continue; 
 					} else {
 						//daca a mai fost conectat , trimite-i daca are mesaje in buffer
+						
 						ret = send_buffered_msg(id_client, &local_buffer, &size_local_buffer,clients, nr_clients);
 					}
 					// se adauga noul socket intors de accept() la multimea descriptorilor de citire

@@ -2,19 +2,13 @@
 # Laborator 8: Multiplexare
 # Makefile
 
-CFLAGS = -Wall -g -O2
-
-# Portul pe care asculta serverul (de completat)
-PORT = 
-
-# Adresa IP a serverului (de completat)
-IP_SERVER = 
+CFLAGS = -Wall -g -O2 
 
 all: server subscriber client_udp
 
 # Compileaza server.c
-server: server.c
-
+server: 
+	gcc  $(CFLAGS) server.c -o $@ -lm
 # Compileaza client.c
 subcriber: subscriber.c
 
