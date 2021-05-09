@@ -118,7 +118,7 @@ void subscribe(struct client ***clients, int nr_clients, struct client_tcp msg_f
 	c->topics[c->nr_topics++].sf_active = msg_from_tcp.store;
 }
 int unsubscribe(struct client ***clients, int nr_clients, struct client_tcp msg_from_tcp, int sockfd,char *topic_name){
-	struct client *c;
+	struct client *c = NULL;
 	for(int i = 0 ;i < nr_clients; i++){
 		if((*clients)[i]->sockfd == sockfd) {
 			c = (*clients)[i];
@@ -217,7 +217,9 @@ int was_connected_before(struct client ***clients, int nr,char *id, struct socka
 	}
 	return -1;//nu exista id
 }
-//(c->topics, c->nr_topics, msg_from_server.topic)
+
+//verific pentru topic cum este SF ca sa stiu 
+//daca retin in buffer local sau nu
 int is_SF_active(struct newsletter *topics, int nr_topics, char *topic){
 	for(int i = 0; i < nr_topics; i++){
 		if(!strcmp(topics[i].topic, topic) && topics[i].sf_active){
@@ -250,7 +252,7 @@ struct buffer_tcp *store_msg_udp(struct buffer_tcp **buff, int buff_size, int so
 	strcpy(msg->id,id);
 	msg->messages[msg->nr_msg_from_server] = calloc(1,sizeof(struct server_tcp));
 	DIE(msg->messages[msg->nr_msg_from_server] == NULL, "server tcp failed calloc");
-	memcpy(msg->messages[msg->nr_msg_from_server++] ,&msg_from_server, sizeof(struct server_tcp));//sau size de msg_from_server??
+	memcpy(msg->messages[msg->nr_msg_from_server++] ,&msg_from_server, sizeof(struct server_tcp));
 	return msg;
 }
 /**
@@ -271,7 +273,7 @@ int send_buffered_msg(char *id, struct buffer_tcp ***buffered,int *size_local, s
 			//send stored messages for client with id = id
 			index = i;
 			for(int j = 0 ;j < buffered_msg->nr_msg_from_server; j++){
-				ret = send(buffered_msg->sockfd, buffered_msg->messages[j], sizeof(struct server_tcp), 0);//daca nu da bine aloc pe stiva messages din struct buffer_tcp
+				ret = send(buffered_msg->sockfd, buffered_msg->messages[j], sizeof(struct server_tcp), 0);
 				DIE(ret < 0,"sending buffered failed");
 				//remove buffered message
 			}
@@ -344,9 +346,6 @@ int main(int argc, char *argv[])
     ret = bind(sockfd_udp, (struct sockaddr*) &serv_addr, sizeof(struct sockaddr));
     DIE(ret < 0, "bind udp");
 
-    //ret = listen(sockfd_udp, MAX_CLIENTS);
-    //DIE(ret < 0, "listen udp");
-
     // se adauga noul file descriptor (socketul pe care se asculta conexiuni) in multimea read_fds
 	FD_SET(STDIN_FILENO, &read_fds);
     FD_SET(sockfd_udp, &read_fds);
@@ -397,12 +396,10 @@ int main(int argc, char *argv[])
 						continue; 
 					} else {
 						//daca a mai fost conectat , trimite-i daca are mesaje in buffer
-						
 						ret = send_buffered_msg(id_client, &local_buffer, &size_local_buffer,clients, nr_clients);
 					}
 					// se adauga noul socket intors de accept() la multimea descriptorilor de citire
 					FD_SET(newsockfd_tcp, &read_fds);
-					//sa mai adaug dupa asta si tmp_fds = read_fds; ??
 					if (newsockfd_tcp > fdmax) { 
 						fdmax = newsockfd_tcp;
 					}
@@ -412,7 +409,7 @@ int main(int argc, char *argv[])
                     struct datagram m;
 					socklen_t udp_len = sizeof(struct sockaddr);
 					memset(buffer,0, sizeof(buffer));
-                    ret = recvfrom(sockfd_udp, buffer, 1552,0, (struct sockaddr*)&cli_addr_udp, &udp_len);//1552??
+                    ret = recvfrom(sockfd_udp, buffer, 1552,0, (struct sockaddr*)&cli_addr_udp, &udp_len);
                     DIE(ret < 0, "recvfrom udp\n");
 
 					m = *(struct datagram *)buffer;
@@ -437,7 +434,8 @@ int main(int argc, char *argv[])
 						if(check_client_subscribed(msg_from_server.topic, clients[offlines]) && clients[offlines]->online == 0 && is_SF_active(clients[offlines]->topics, clients[offlines]->nr_topics, msg_from_server.topic)) {
 								//pentru subscribe offline adaug in buffer_local si cand se conecteaza unul la accept verific daca a mai fost conectat inainte
 								// apoi ii trimit din buffer_local daca are vreun mesaj
-								local_buffer[size_local_buffer++] = store_msg_udp( local_buffer, size_local_buffer,clients[offlines]->sockfd, clients[offlines]->id, msg_from_server);//in loc de c->sockfd sa pun subscribed ??
+								local_buffer[size_local_buffer++] = store_msg_udp( local_buffer, size_local_buffer,clients[offlines]->sockfd, 
+																				   clients[offlines]->id, msg_from_server);
 							} 
 					}
 					
@@ -452,7 +450,6 @@ int main(int argc, char *argv[])
 					memset(buffer,0 ,sizeof(buffer));
 					n = recv(i, &msg_from_tcp, sizeof(struct client_tcp), 0);
 					DIE(n < 0, "recv\n");
-					//printf("unsubscribe %d %s\n",msg_from_tcp.action, msg_from_tcp.topic);
 					if (n == 0) {
 						client_left(i, &clients, nr_clients);
 						//dupa ce se deconecteaza ,caut topicurile unde ar sf_active = 1 si retin in buffer_local
@@ -463,7 +460,6 @@ int main(int argc, char *argv[])
 						if (msg_from_tcp.action){//subscribe case
 							subscribe(&clients, nr_clients, msg_from_tcp, i);
 						} else {// verifica daca era subscribed inainte
-							//printf("client unsubscribed to %s %d\n", msg_from_tcp.topic, msg_from_tcp.store);
 							unsubscribe(&clients, nr_clients, msg_from_tcp, i, msg_from_tcp.topic);
 						}
 					}	

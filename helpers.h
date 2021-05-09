@@ -36,7 +36,7 @@
 struct datagram {
 	char topic[50];
 	uint8_t type;
-	char payload[CONTENT]; //  1501 sau 1552??
+	char payload[CONTENT]; 
 
 };
 
@@ -62,7 +62,7 @@ struct  newsletter {
 };
 struct  client {
 	char id[ID_LEN];
-	int sockfd; //as putea crea un map<sockfd, client>
+	int sockfd; 
 	struct datagram *messages_offline;//retine mesajele pentru id-ul clientului deconectat si le trimite  daca sf _active = 1 
 	struct newsletter *topics; //server retine topicurile la care este abonat clientul cu id-ul respectiv
 	int nr_topics;
@@ -73,7 +73,7 @@ struct  client {
 struct  buffer_tcp {
 	char id[ID_LEN];
 	int sockfd;
-	struct server_tcp **messages;//mesaje care tre trimise de la server la clientul id tcp
+	struct server_tcp **messages;//mesaje care trebuie trimise de la server la clientul id tcp
 	int nr_msg_from_server;
 };
 
