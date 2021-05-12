@@ -26,7 +26,8 @@ struct client * id_exists(char id2[10],struct client **clients, int nr){
 }
 
 //daca nu a mai fost conectat clientul
-//creeaza un nou client
+//creeaza un nou client si 
+//aloca dinamic campul topics
 //daca a mai fost conectat,doar seteaza online pe 1
 struct client * create_new_client( int sockfd, struct sockaddr_in cli_addr , char *id){
 
@@ -41,6 +42,14 @@ struct client * create_new_client( int sockfd, struct sockaddr_in cli_addr , cha
 	printf("New client %s connected from %s:%d.\n",
 			clnt->id,inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
 	return clnt;
+}
+void free_client(struct client *clnt){
+	for(int i = 0 ; i < clnt->nr_topics; i++){
+		if(clnt->topics != NULL)
+			free(clnt->topics[i].topic);
+	}
+	free(clnt->topics);
+	free(clnt);
 }
 void close_sockets(int sockfd_tcp, int sockfd_udp, fd_set *read_fds, int fdmax) {
 	for (int fds = 0; fds <= fdmax; fds++){
@@ -111,7 +120,7 @@ int check_client_subscribed(char *topic , struct client *c){
 void subscribe(struct client ***clients, int nr_clients, struct client_tcp msg_from_tcp, int sockfd){
 	struct client *c = map_client_sockfd(sockfd, *clients, nr_clients);
 
-	c->topics[c->nr_topics].topic = calloc( TOPIC_LEN,sizeof(char));
+	c->topics[c->nr_topics].topic = calloc(TOPIC_LEN, sizeof(char));
 	DIE(!c->topics[c->nr_topics].topic,"client subsc calloc");
 	
 	strcpy(c->topics[c->nr_topics].topic, msg_from_tcp.topic);
@@ -209,6 +218,7 @@ int was_connected_before(struct client ***clients, int nr,char *id, struct socka
 			return 0;
 		} else if(check_online->online == 0){
 			//a mai fost conectat inainte
+			//welcome back
 			printf("New client %s connected from %s:%d.\n",
 					check_online->id,inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
 			check_online->online = 1;
@@ -254,6 +264,15 @@ struct buffer_tcp *store_msg_udp(struct buffer_tcp **buff, int buff_size, int so
 	DIE(msg->messages[msg->nr_msg_from_server] == NULL, "server tcp failed calloc");
 	memcpy(msg->messages[msg->nr_msg_from_server++] ,&msg_from_server, sizeof(struct server_tcp));
 	return msg;
+}
+void free_local_buffer(struct buffer_tcp **local_buffer,int size_buffer){
+	for(int i = 0 ; i < size_buffer; i++){
+		if (local_buffer[i]){
+			free(local_buffer[i]->messages);
+			free(local_buffer[i]);
+		}
+	}
+	free(local_buffer);
 }
 /**
  * 0 if stored msg sent successfully
@@ -311,6 +330,7 @@ int main(int argc, char *argv[])
 	socklen_t clilen;
 	struct client_tcp msg_from_tcp;
 	struct server_tcp msg_from_server;
+	//local_buffer = buffer pentru toti clientii ,insa mesajele sunt identificate dupa id
 	struct buffer_tcp **local_buffer = calloc(MAX_BUFFER_TCP, sizeof(struct buffer_tcp*));
 	DIE(local_buffer == NULL,"buffer_tcp calloc\n");
 	int size_local_buffer = 0;
@@ -467,7 +487,17 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
-
+	//aici fac eliberarile din memorie
+	//le las doar daca cred ca nu or sa dea seg fault
+	//pe checker da bine si cu eliberarile
+	for(int i = 0; i < nr_clients; i++){
+		free(clients[i]);
+	}
+	
+	free(clients);
+	
+	free_local_buffer(local_buffer, size_local_buffer);
+	
 	close(sockfd_tcp);
     close(sockfd_udp);
 	return 0;
